@@ -18,6 +18,8 @@ public struct LineChartView: View {
     
     public var formSize:CGSize
     public var dropShadow: Bool
+    public var onCard: Bool
+    public var getXLabel: ((Int)->String)?
     public var valueSpecifier:String
     
     @State private var touchLocation:CGPoint = .zero
@@ -30,17 +32,23 @@ public struct LineChartView: View {
             
         }
     }
+    @State private var currentIndex: Int = 0
     var frame = CGSize(width: 180, height: 120)
     private var rateValue: Int?
+    
+    public var strictSize: Bool
     
     public init(data: [Double],
                 title: String,
                 legend: String? = nil,
                 style: ChartStyle = Styles.lineChartStyleOne,
                 form: CGSize? = ChartForm.medium,
-                rateValue: Int?,
-                dropShadow: Bool? = true,
-                valueSpecifier: String? = "%.1f") {
+                rateValue: Int? = nil,
+                dropShadow: Bool = true,
+                onCard: Bool = true,
+                valueSpecifier: String? = "%.1f",
+                getXLabel: ((Int)->String)? = nil,
+                strictSize: Bool = false) {
         
         self.data = ChartData(points: data)
         self.title = title
@@ -49,17 +57,22 @@ public struct LineChartView: View {
         self.darkModeStyle = style.darkModeStyle != nil ? style.darkModeStyle! : Styles.lineViewDarkMode
         self.formSize = form!
         frame = CGSize(width: self.formSize.width, height: self.formSize.height/2)
-        self.dropShadow = dropShadow!
+        self.strictSize = strictSize
+        self.dropShadow = dropShadow
+        self.onCard = onCard
         self.valueSpecifier = valueSpecifier!
         self.rateValue = rateValue
+        self.getXLabel = getXLabel
     }
     
     public var body: some View {
         ZStack(alignment: .center){
-            RoundedRectangle(cornerRadius: 20)
-                .fill(self.colorScheme == .dark ? self.darkModeStyle.backgroundColor : self.style.backgroundColor)
-                .frame(width: frame.width, height: 240, alignment: .center)
-                .shadow(color: self.style.dropShadowColor, radius: self.dropShadow ? 8 : 0)
+            if (self.onCard) {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(self.colorScheme == .dark ? self.darkModeStyle.backgroundColor : self.style.backgroundColor)
+                    .frame(width: frame.width, height: strictSize ? frame.height*2 : 240, alignment: .center)
+                    .shadow(color: self.style.dropShadowColor, radius: self.dropShadow ? 8 : 0)
+            }
             VStack(alignment: .leading){
                 if(!self.showIndicatorDot){
                     VStack(alignment: .leading, spacing: 8){
@@ -76,12 +89,12 @@ public struct LineChartView: View {
                             
                             if let rateValue = self.rateValue
                             {
-                                if (rateValue ?? 0 >= 0){
+                                if (rateValue >= 0){
                                     Image(systemName: "arrow.up")
                                 }else{
                                     Image(systemName: "arrow.down")
                                 }
-                                Text("\(rateValue!)%")
+                                Text("\(rateValue)%")
                             }
                         }
                     }
@@ -91,9 +104,17 @@ public struct LineChartView: View {
                 }else{
                     HStack{
                         Spacer()
-                        Text("\(self.currentValue, specifier: self.valueSpecifier)")
-                            .font(.system(size: 41, weight: .bold, design: .default))
-                            .offset(x: 0, y: 30)
+                        VStack {
+                            Text("\(self.currentValue, specifier: self.valueSpecifier)")
+                                .font(.system(size: 41, weight: .bold, design: .default))
+                                .offset(x: 0, y: 30)
+                            if let xLabel = getXLabel {
+                                Text(xLabel(self.currentIndex))
+                                    .font(.system(size: 20, weight: .semibold, design: .default))
+                                    .foregroundColor(self.colorScheme == .dark ? self.darkModeStyle.legendTextColor :self.style.legendTextColor)
+                                    .offset(x: 0, y: 30)
+                            }
+                        }
                         Spacer()
                     }
                     .transition(.scale)
@@ -109,7 +130,7 @@ public struct LineChartView: View {
                     )
                 }
                 .frame(width: frame.width, height: frame.height)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .clipShape(self.onCard ? RoundedRectangle(cornerRadius: 20) : RoundedRectangle(cornerRadius: 0))
                 .offset(x: 0, y: 0)
             }.frame(width: self.formSize.width, height: self.formSize.height)
         }
@@ -132,6 +153,7 @@ public struct LineChartView: View {
         
         let index:Int = Int(round((toPoint.x)/stepWidth))
         if (index >= 0 && index < points.count){
+            self.currentIndex = index
             self.currentValue = points[index]
             return CGPoint(x: CGFloat(index)*stepWidth, y: CGFloat(points[index])*stepHeight)
         }
@@ -146,6 +168,12 @@ struct WidgetView_Previews: PreviewProvider {
                 .environment(\.colorScheme, .light)
             
             LineChartView(data: [282.502, 284.495, 283.51, 285.019, 285.197, 286.118, 288.737, 288.455, 289.391, 287.691, 285.878, 286.46, 286.252, 284.652, 284.129, 284.188], title: "Line chart", legend: "Basic")
+            .environment(\.colorScheme, .light)
+            
+            LineChartView(data: [282.502, 284.495, 283.51, 285.019, 285.197, 286.118, 288.737, 288.455, 289.391, 287.691, 285.878, 286.46, 286.25, 284.652, 284.129, 284.188], title: "Line chart", legend: "Basic", onCard: false, getXLabel: {i in "point \(i)"})
+            .environment(\.colorScheme, .light)
+            
+            LineChartView(data: [282.502, 284.495, 283.51, 285.019, 285.197, 286.118, 288.737, 288.455, 289.391, 287.691, 285.878, 286.46, 286.252, 284.652, 284.129, 284.188], title: "Line chart", legend: "Basic", form: CGSize(width: 150, height: 150), onCard: false, getXLabel: {i in "point \(i)"}, strictSize: true)
             .environment(\.colorScheme, .light)
         }
     }
