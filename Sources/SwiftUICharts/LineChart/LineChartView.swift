@@ -185,13 +185,19 @@ public struct LineChartView: View {
                              displayYAxisGridLines: yGridlines,
                              displayXAxisLabels: xMarkings,
                              getXAxisLabel: {
+                            let translateNTile: (Int) -> (Int) = { n in
+                                let stride = (data.points.count - 1) / (xMarkings - 1)
+                                return n * stride
+                            }
                             switch xLabelSource {
                             case .auto:
                                 if let f = getXLabel {
-                                    return f
+                                    return { x in
+                                        f(translateNTile(x))
+                                    }
                                 }
                                 return { i in
-                                    "\(i)"
+                                    "\(translateNTile(i))"
                                 }
                             case .specific(let getXLabel):
                                 return getXLabel
