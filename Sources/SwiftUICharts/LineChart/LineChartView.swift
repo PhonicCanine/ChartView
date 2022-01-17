@@ -8,6 +8,17 @@
 
 import SwiftUI
 
+public enum GridLineSpecifier {
+    case none
+    case auto
+    case specific(n: Int)
+}
+
+public enum xLabelType {
+    case auto
+    case specific(getXLabel: (Int) -> String)
+}
+
 public struct LineChartView: View {
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     @ObservedObject var data:ChartData
@@ -21,6 +32,11 @@ public struct LineChartView: View {
     public var onCard: Bool
     public var getXLabel: ((Int)->String)?
     public var valueSpecifier:String
+    
+    public var animated:Bool = false
+    public var yAxisGridlines: GridLineSpecifier = .none
+    public var xAxisMarkings: GridLineSpecifier = .none
+    public var xLabelSource: xLabelType = .auto
     
     @State private var touchLocation:CGPoint = .zero
     @State private var showIndicatorDot: Bool = false
@@ -48,7 +64,11 @@ public struct LineChartView: View {
                 onCard: Bool = true,
                 valueSpecifier: String? = "%.1f",
                 getXLabel: ((Int)->String)? = nil,
-                strictSize: Bool = false) {
+                strictSize: Bool = false,
+                animated: Bool = false,
+                yAxisGridlines: GridLineSpecifier = .none,
+                xAxisMarkings: GridLineSpecifier = .none,
+                xLabelSource: xLabelType = .auto) {
         
         self.data = ChartData(points: data)
         self.title = title
@@ -63,6 +83,10 @@ public struct LineChartView: View {
         self.valueSpecifier = valueSpecifier!
         self.rateValue = rateValue
         self.getXLabel = getXLabel
+        self.animated = false
+        self.yAxisGridlines = yAxisGridlines
+        self.xAxisMarkings = xAxisMarkings
+        self.xLabelSource = xLabelSource
     }
     
     public var body: some View {
@@ -120,15 +144,66 @@ public struct LineChartView: View {
                     .transition(.scale)
                 }
                 Spacer()
-                GeometryReader{ geometry in
-                    Line(data: self.data,
-                         frame: .constant(geometry.frame(in: .local)),
-                         touchLocation: self.$touchLocation,
-                         showIndicator: self.$showIndicatorDot,
-                         minDataValue: .constant(nil),
-                         maxDataValue: .constant(nil)
-                    )
+                let yGridlines = { () -> Int in
+                    switch yAxisGridlines {
+                    case .none:
+                        return 0
+                    case .specific(let n):
+                        return n
+                    case .auto:
+                        guard frame.width > 150 else { return 0 }
+                        let v = Int(frame.height / 75) + 1
+                        return v > 1 ? v : 0
+                    }
+                }()
+                let xMarkings = { () -> Int in
+                    switch xAxisMarkings {
+                    case .none:
+                        return 0
+                    case .specific(let n):
+                        return n
+                    case .auto:
+                        guard frame.height > 70 else { return 0 }
+                        guard frame.width > 50 else { return 0 }
+                        let possible = data.points.count.findNTiles()
+                        let reasonable = Int(ceil((frame.width / 65) + 1))
+                        return possible.first { x in
+                            x <= reasonable
+                        } ?? 0
+                    }
+                }()
+                VStack {
+                    GeometryReader{ geometry in
+                        
+                        Line(data: self.data,
+                             frame: .constant(geometry.frame(in: .local)),
+                             touchLocation: self.$touchLocation,
+                             showIndicator: self.$showIndicatorDot,
+                             minDataValue: .constant(nil),
+                             maxDataValue: .constant(nil),
+                             animate: animated,
+                             displayYAxisGridLines: yGridlines,
+                             displayXAxisLabels: xMarkings,
+                             getXAxisLabel: {
+                            switch xLabelSource {
+                            case .auto:
+                                if let f = getXLabel {
+                                    return f
+                                }
+                                return { i in
+                                    "\(i)"
+                                }
+                            case .specific(let getXLabel):
+                                return getXLabel
+                            }
+                        }(),
+                             gradient: style.gradientColor,
+                             backgroundColor: style.accentColor
+                        )
+                    }
                 }
+                .padding(.horizontal, xMarkings+yGridlines > 0 ? 20 : 0)
+                .padding(.bottom, 2)
                 .frame(width: frame.width, height: frame.height)
                 .clipShape(self.onCard ? RoundedRectangle(cornerRadius: 20) : RoundedRectangle(cornerRadius: 0))
                 .offset(x: 0, y: 0)
@@ -172,8 +247,14 @@ struct WidgetView_Previews: PreviewProvider {
             
             LineChartView(data: [282.502, 284.495, 283.51, 285.019, 285.197, 286.118, 288.737, 288.455, 289.391, 287.691, 285.878, 286.46, 286.25, 284.652, 284.129, 284.188], title: "Line chart", legend: "Basic", onCard: false, getXLabel: {i in "point \(i)"})
             .environment(\.colorScheme, .light)
-            
+
             LineChartView(data: [282.502, 284.495, 283.51, 285.019, 285.197, 286.118, 288.737, 288.455, 289.391, 287.691, 285.878, 286.46, 286.252, 284.652, 284.129, 284.188], title: "Line chart", legend: "Basic", form: CGSize(width: 150, height: 150), onCard: false, getXLabel: {i in "point \(i)"}, strictSize: true)
+            .environment(\.colorScheme, .light)
+            
+            LineChartView(data: [282.502, 284.495, 283.51, 285.019, 285.197, 286.118, 288.737, 288.455, 289.391, 287.691, 285.878, 286.46, 286.252, 284.652, 284.129, 284.188], title: "Line chart", legend: "Basic", form: CGSize(width: 300, height: 300), onCard: false, getXLabel: {i in "point \(i)"}, strictSize: true, yAxisGridlines: .auto, xAxisMarkings: .auto)
+            .environment(\.colorScheme, .light)
+            
+            LineChartView(data: [3,1,2,3,4,5,6,7,8,9], title: "Line chart", legend: "Basic", form: CGSize(width: 300, height: 300), onCard: false, getXLabel: {i in "\(i + 1) NOV"}, strictSize: true, yAxisGridlines: .auto, xAxisMarkings: .auto)
             .environment(\.colorScheme, .light)
         }
     }

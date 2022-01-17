@@ -39,8 +39,8 @@ public struct GradientColor {
         self.end = end
     }
     
-    public func getGradient() -> Gradient {
-        return Gradient(colors: [start, end])
+    public func getGradient(opacityModifier: Double = 1) -> Gradient {
+        return Gradient(colors: [start.opacity(opacityModifier), end.opacity(opacityModifier)])
     }
 }
 
